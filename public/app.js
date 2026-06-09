@@ -1022,6 +1022,8 @@ if (window.fanboxPty) {
 
 // ---------- 启动 ----------
 async function init() {
+  // 桌面 app：标记 body，给顶部交通灯留位、顶部可拖拽
+  if (window.fanboxEnv && window.fanboxEnv.isDesktopApp) document.documentElement.classList.add('desktop');
   applyTheme(state.theme, false);
   bindEvents();
   bindResizer();

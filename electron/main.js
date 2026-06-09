@@ -5,7 +5,7 @@
  * 复用零依赖后端 server.js（文件能力），叠加 node-pty 内嵌终端，
  * 让 TUI coding agent（Claude Code / Codex / Aider…）在界面里直接跑起来。
  */
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, nativeImage } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -48,7 +48,14 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // 开发模式下 macOS 默认显示 Electron 图标——换成翻箱自己的（打包后由 electron-builder 的 icon 接管）
+  if (process.platform === 'darwin' && app.dock) {
+    try { app.dock.setIcon(nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png'))); } catch { /* */ }
+  }
+  app.setName('翻箱 FanBox');
+  createWindow();
+});
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 app.on('window-all-closed', () => {
   terminals.forEach((p) => { try { p.kill(); } catch { /* */ } });

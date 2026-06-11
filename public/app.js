@@ -2343,12 +2343,12 @@ const usagePanel = {
       const c = d.claude;
       h += `<div class="usage-agent">Claude Code</div>`;
       if (c.official) {
-        // 官方限额窗口（和 Claude Code /usage 面板同源）：5h 滚动窗口 + 周配额
+        // 官方限额窗口（和 Claude Code /usage 面板同源）：5h 滚动窗口 + 周配额，优先展示
         if (c.official.fiveHour) h += this.bar('5h 窗口', c.official.fiveHour.usedPercent, this.fmtReset(c.official.fiveHour.resetsAt));
         if (c.official.sevenDay) h += this.bar('周配额', c.official.sevenDay.usedPercent, this.fmtReset(c.official.sevenDay.resetsAt));
-        if (c.last5h) h += `<div class="usage-sub">近5h ${this.fmtTok(c.last5h.total)} · 本周 ${this.fmtTok(c.week.total)} token</div>`;
-      } else if (c.last5h) {
-        // 拿不到官方数据（离线 / 没有 OAuth 凭证）：回退本地 token 统计
+      }
+      if (c.last5h) {
+        // 本地 token 统计照常保留（拿不到官方数据时就只剩这块）
         h += `<div class="usage-trio">
           <span><b>${this.fmtTok(c.last5h.total)}</b>近5h</span>
           <span><b>${this.fmtTok(c.today.total)}</b>今日</span>

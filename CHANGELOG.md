@@ -11,6 +11,15 @@
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-06-11
+
+### Fixed
+- 打包版 Claude Code 官方限额（5h 窗口 / 周配额）一直不显示：App 从 Finder/Dock 启动时没有 shell 的代理环境变量，内置 curl 直连 api.anthropic.com 被 403 地域拦截。现在没有代理变量时自动读 macOS 系统代理（`scutil --proxy`，Clash 等都会写入）兜底
+- macOS 移入废纸篓必败（含 Skills 面板的卸载）：AppleScript 的 `POSIX file` 缺 `as alias` 强转，Finder 报 -1728
+
+### Changed
+- Agent 用量面板的 Claude Code 区块：限额进度条优先展示，三格本地 token 用量（近5h / 今日 / 本周）完整保留在下方，不再压缩成一行小字
+
 ## [1.5.0] - 2026-06-11
 
 ### Added

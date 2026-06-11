@@ -440,7 +440,8 @@ function trashPath(p) {
     let cmd;
     if (PLATFORM === 'darwin') {
       // 路径走 argv，不拼进单引号 AppleScript 字面量——避免含 ' 的文件名删除失败/注入
-      cmd = `osascript -e 'on run argv' -e 'tell application "Finder" to delete (POSIX file (item 1 of argv))' -e 'end run' ${shellQuote(target)}`;
+      // POSIX file 必须 as alias 强转，否则 Finder 解析不了报 -1728
+      cmd = `osascript -e 'on run argv' -e 'tell application "Finder" to delete (POSIX file (item 1 of argv) as alias)' -e 'end run' ${shellQuote(target)}`;
     } else if (PLATFORM === 'win32') {
       const method = isDir ? 'DeleteDirectory' : 'DeleteFile';
       const ps = target.replace(/'/g, "''");
@@ -948,16 +949,34 @@ async function claudeOAuthToken() {
   catch { return null; }
 }
 
+// 终端启动时 curl 自己会认 http_proxy 等环境变量；但打包 App 从 Finder/Dock 启动没有这些变量，
+// curl 直连 api.anthropic.com 会被 403 地域拦截。此时读 macOS 系统代理（Clash 等都会写进去）兜底。
+async function curlSysProxyLine() {
+  if (['https_proxy', 'HTTPS_PROXY', 'http_proxy', 'HTTP_PROXY', 'all_proxy', 'ALL_PROXY'].some((k) => process.env[k])) return '';
+  if (PLATFORM !== 'darwin') return '';
+  try {
+    const out = await new Promise((resolve, reject) => {
+      execFile('scutil', ['--proxy'], { timeout: 3000 }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
+    });
+    const grab = (k) => (out.match(new RegExp(`\\b${k} : (\\S+)`)) || [])[1];
+    if (grab('HTTPSEnable') === '1') return `proxy = "http://${grab('HTTPSProxy')}:${grab('HTTPSPort')}"\n`;
+    if (grab('HTTPEnable') === '1') return `proxy = "http://${grab('HTTPProxy')}:${grab('HTTPPort')}"\n`;
+    if (grab('SOCKSEnable') === '1') return `proxy = "socks5h://${grab('SOCKSProxy')}:${grab('SOCKSPort')}"\n`;
+  } catch { /* 读不到就直连 */ }
+  return '';
+}
+
 async function claudeOfficialLimits() {
   const token = await claudeOAuthToken();
   if (!token) return null;
   // 不用 Node https：该接口的防护按 TLS 指纹拦——同样的请求头 curl 能 200、Node 直接 403。
   // 走系统 curl（macOS/Win10+ 自带），顺带继承用户的代理环境变量；
   // token 经 stdin 的 curl 配置传入，不暴露在进程列表里
+  const proxyLine = await curlSysProxyLine();
   const body = await new Promise((resolve, reject) => {
     const cp = execFile('curl', ['-sS', '--max-time', '8', '-K', '-', 'https://api.anthropic.com/api/oauth/usage'],
       { timeout: 10000 }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
-    cp.stdin.end(`header = "Authorization: Bearer ${token}"\nheader = "anthropic-beta: oauth-2025-04-20"\n`);
+    cp.stdin.end(`${proxyLine}header = "Authorization: Bearer ${token}"\nheader = "anthropic-beta: oauth-2025-04-20"\n`);
   });
   const d = JSON.parse(body);
   const win = (w) => (w && w.utilization != null)

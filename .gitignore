@@ -5,6 +5,7 @@ dist/
 build/*
 !build/icon.icns
 !build/icon.png
+!build/icon.ico
 !build/icon-1024.png
 !build/entitlements.mac.plist
 

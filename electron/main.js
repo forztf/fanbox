@@ -42,10 +42,9 @@ function createWindow() {
   win = new BrowserWindow({
     width: b.width, height: b.height, x: b.x, y: b.y,
     minWidth: 920, minHeight: 600,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: process.platform === 'win32' ? 'default' : 'hiddenInset',
     backgroundColor: '#0b0c0a',
-    vibrancy: 'sidebar',
-    visualEffectState: 'active',
+    ...(process.platform === 'darwin' ? { vibrancy: 'sidebar', visualEffectState: 'active' } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -88,6 +87,11 @@ app.whenReady().then(() => {
 
 // ---------- 截图直通车：监听系统截屏落盘，新截图推给渲染层浮出直通卡 ----------
 function screenshotDir() {
+  if (process.platform === 'win32') {
+    // Windows: 用户截图目录，通常在 Pictures\Screenshots，不存在则回退桌面
+    const pics = path.join(os.homedir(), 'Pictures', 'Screenshots');
+    return fs.existsSync(pics) ? pics : path.join(os.homedir(), 'Desktop');
+  }
   try {
     const out = require('child_process').execSync('defaults read com.apple.screencapture location 2>/dev/null', { encoding: 'utf8' }).trim();
     if (out) return out.startsWith('~') ? path.join(os.homedir(), out.slice(1)) : out;
@@ -273,8 +277,13 @@ ipcMain.handle('clip:image', (e, { path: p }) => {
 });
 ipcMain.handle('clip:file', (e, { path: p }) => new Promise((resolve) => {
   const { execFile } = require('child_process');
-  // argv 传路径，避免拼进 AppleScript 字面量被注入
-  execFile('osascript', ['-e', 'on run argv', '-e', 'set the clipboard to (POSIX file (item 1 of argv))', '-e', 'end run', p], (err) => resolve({ ok: !err, error: err && err.message }));
+  if (process.platform === 'win32') {
+    // Windows: PowerShell Set-Clipboard 复制文件路径到剪贴板（资源管理器可粘贴）
+    execFile('powershell', ['-Command', `Set-Clipboard -Path "${p}"`], (err) => resolve({ ok: !err, error: err && err.message }));
+  } else {
+    // macOS: osascript 把 POSIX file 写入剪贴板
+    execFile('osascript', ['-e', 'on run argv', '-e', 'set the clipboard to (POSIX file (item 1 of argv))', '-e', 'end run', p], (err) => resolve({ ok: !err, error: err && err.message }));
+  }
 }));
 
 // 拖拽落盘：file-promise 类拖入（截图浮窗等）没有真实路径，把字节写进临时目录换路径
@@ -314,11 +323,20 @@ ipcMain.handle('pty:cwd', (e, { id }) => new Promise((resolve) => {
   const p = terminals.get(id);
   if (!p || !p.pid) return resolve({ ok: false });
   const { exec } = require('child_process');
-  exec(`lsof -a -p ${p.pid} -d cwd -Fn`, { env: { ...process.env, LC_ALL: 'en_US.UTF-8' } }, (err, stdout) => {
-    if (err) return resolve({ ok: false });
-    const line = stdout.split('\n').find((l) => l.startsWith('n'));
-    resolve(line ? { ok: true, cwd: decodeLsofPath(line.slice(1)) } : { ok: false });
-  });
+  if (process.platform === 'win32') {
+    // Windows: PowerShell 通过 Get-CimInstance 查进程可执行路径，再取其目录
+    exec(`powershell -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${p.pid}').ExecutablePath"`, (err, stdout) => {
+      if (err || !stdout.trim()) return resolve({ ok: false });
+      const exePath = stdout.trim();
+      resolve({ ok: true, cwd: path.dirname(exePath) });
+    });
+  } else {
+    exec(`lsof -a -p ${p.pid} -d cwd -Fn`, { env: { ...process.env, LC_ALL: 'en_US.UTF-8' } }, (err, stdout) => {
+      if (err) return resolve({ ok: false });
+      const line = stdout.split('\n').find((l) => l.startsWith('n'));
+      resolve(line ? { ok: true, cwd: decodeLsofPath(line.slice(1)) } : { ok: false });
+    });
+  }
 }));
 
 // 取终端前台进程名（node-pty 维护）：判断当前是裸 shell 还是正跑着 claude/codex 等程序

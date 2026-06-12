@@ -523,6 +523,11 @@ kbd {
 .rel-opts label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
 .rel-hint { font-size: 11.5px; color: var(--orange, #e8a13c); }
 
+/* 语言切换 */
+.sidebar-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lang-toggle { cursor: pointer; color: var(--text-dim); font-size: 10.5px; padding: 1px 6px; border: 1px solid var(--border); border-radius: 5px; flex: none; }
+.lang-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
 /* 截图直通车 */
 .shot-card {
   position: fixed; right: 18px; bottom: 18px; z-index: 300; width: 224px;
@@ -824,15 +829,15 @@ kbd {
 .xterm-instance.show { display: block; }
 .xterm-instance .xterm { height: 100%; }
 
-#btn-terminal.active { color: var(--accent); border-color: var(--accent); }
-
 /* ---------- 桌面 app：交通灯避让 + 顶部可拖拽 ---------- */
 /* hiddenInset 标题栏的红绿灯坐在左上角，给侧栏 logo 让出空间（浏览器版无此问题，不受影响）*/
 .desktop #sidebar { padding-top: 40px; }
 .desktop .brand { -webkit-app-region: drag; }
-.desktop .brand .logo, .desktop .brand-name, .desktop .brand-sub { -webkit-app-region: no-drag; }
 /* 顶栏空白处也可拖窗，但其中的按钮/面包屑保持可点 */
 .desktop #topbar { -webkit-app-region: drag; }
+/* 侧栏不做整体拖拽区：#sidebar 自身是滚动容器（overflow-y:auto），而 Electron 的
+   app-region:drag 区域收不到滚轮事件——整栏 drag 会让滚动时灵时卡（#6 的方案回退）。
+   拖窗用品牌区和顶栏，足够顺手 */
 .desktop #topbar button, .desktop #topbar .breadcrumb, .desktop #topbar .seg, .desktop #topbar .toggle, .desktop #topbar input { -webkit-app-region: no-drag; }
 
 /* 终端头：跟随/定位 文字按钮 */
